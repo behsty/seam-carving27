@@ -1,0 +1,7 @@
+{
+  "name": "seam-carving27",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "opencv4"
+  ]
+}

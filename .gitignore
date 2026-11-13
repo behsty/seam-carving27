@@ -26,3 +26,6 @@ outputs/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# vcpkg dependencies
+vcpkg_installed/
