@@ -1,43 +1,49 @@
-# Seam Carving
+# Seam Carving — Assignment 2
 
-C++ project for Assignment 2: Automatic Zoom. The goal is content-aware image resizing by removing low-energy seams, with comparisons between dynamic programming, greedy, and graph-cut approaches.
+C++17 and OpenCV project for content-aware image resizing.
 
-## Current progress
+**For teammates:** complete the one-time Windows setup below. After that, click Visual Studio's green Run button to build and run. OpenCV is installed automatically through vcpkg during CMake configuration.
 
-- CMake build setup and OpenCV integration are working.
-- The program loads `assets/test.png` and prints its dimensions.
-- Energy-map calculation and seam-carving algorithms are not implemented yet.
+## Current status
 
-## Requirements
+The build setup and OpenCV image-loading test are working. The program loads `assets/test.png` and prints its dimensions in a console. Energy-map calculation and the seam-carving algorithms are still to be implemented. There is no image window or resizing interface yet.
 
-The included build preset targets **64-bit Windows** with a Debug build.
+## First-time setup on Windows
 
-- Visual Studio 2022 with the **Desktop development with C++** workload, a Windows SDK, and **C++ CMake tools for Windows** (including CMake and Ninja).
-- CMake 3.21 or newer (needed for the version 3 preset files; use the bundled version if it meets this requirement).
-- Git and vcpkg.
+### 1. Install the Visual Studio C++ tools
 
-After the one-time setup below, use Visual Studio's green Run button to build and run the program. You do not need to type build commands each time.
+Open **Visual Studio Installer**, choose **Modify** for your Visual Studio installation, and install:
 
-## Setup
+- **Desktop development with C++** workload.
+- The MSVC x64/x86 compiler tools and a Windows SDK.
+- **C++ CMake tools for Windows**, including CMake and Ninja.
 
-### 1. Get the project
+Use the full **Visual Studio** application for these instructions. Visual Studio Code has a different setup. The preset files require CMake 3.21 or newer.
 
-Clone this repository. In Visual Studio, use **File > Open > Folder** and select the project folder containing `CMakeLists.txt`.
+### 2. Clone the repository
 
-### 2. Install vcpkg if needed
+Clone this repository using GitHub Desktop or Git. If you already have it, pull the latest changes before continuing.
 
-Choose a location outside the project for vcpkg. For example:
+Each teammate needs their own local build. You do not need to copy another teammate's `out` folder.
+
+### 3. Install vcpkg
+
+If you already have a working vcpkg installation, skip to step 4.
+
+Open PowerShell and run the following example commands. Git must be installed and available in the terminal:
 
 ```powershell
 git clone https://github.com/microsoft/vcpkg.git C:/tools/vcpkg
 & C:/tools/vcpkg/bootstrap-vcpkg.bat
 ```
 
-If you already have vcpkg installed, use that installation instead.
+You can choose a different folder if needed; use that same folder in the next step. Keep vcpkg outside this repository.
 
-### 3. Set your local vcpkg path
+**You do not need to install OpenCV manually or set up its library paths.** The project's `vcpkg.json` declares OpenCV as a dependency.
 
-Create or update `CMakeUserPresets.json` in the project root:
+### 4. Set your own vcpkg path
+
+In the project root, open `CMakeUserPresets.json`. If it is missing, create it using this content:
 
 ```json
 {
@@ -54,20 +60,36 @@ Create or update `CMakeUserPresets.json` in the project root:
 }
 ```
 
-Replace `C:/tools/vcpkg` with your own installation path. The existing local preset may contain another teammate's path. Use forward slashes in the JSON path, or escape backslashes as `\\`.
+Change **only the `VCPKG_ROOT` value** to your vcpkg installation folder. For example, if you installed it at `D:\tools\vcpkg`, enter `D:/tools/vcpkg` in the JSON.
 
-### 4. Select the preset and run in Visual Studio
+The existing file may contain `C:/Users/alyy/tools/vcpkg`. That is Alyssa's local path; replace it with yours. Keep the preset name `windows-debug` unchanged.
 
-1. Save `CMakeUserPresets.json` and select **windows-debug** in Visual Studio's configuration dropdown.
-2. Wait for CMake configuration and dependency installation to finish. If configuration does not start automatically, use **Project > Configure Cache**.
-3. Select **seam_carving.exe** as the startup target beside the green Run button.
-4. Click the green **Run** button. Visual Studio builds the program if needed and launches it.
+Save the file. The folder you specify must contain `scripts/buildsystems/vcpkg.cmake`.
 
-During configuration, vcpkg installs the `opencv4` dependency declared in `vcpkg.json`. The first configuration can take a while because dependencies may need to be downloaded and compiled.
+### 5. Open the project and let CMake configure
 
-**For future runs:** open the project and click the green Run button. The preset and startup target normally remain selected.
+1. In Visual Studio, choose **File > Open > Folder**.
+2. Select the repository root folder containing `CMakeLists.txt`.
+3. Select **windows-debug** in the configuration dropdown at the top.
+4. Wait for CMake configuration to finish. If it does not start automatically, use **Project > Configure Cache**.
 
-With the supplied test image, the expected output is:
+An internet connection is needed for the first dependency installation. vcpkg downloads and builds OpenCV and its dependencies, so the first configuration can take a while. Check the CMake output for completion or errors before trying to run.
+
+### 6. Select the startup target and click Run
+
+At the top of Visual Studio, use these selections:
+
+| Toolbar setting | Select |
+| --- | --- |
+| Run location | Local Machine |
+| Build/configure preset | windows-debug |
+| Startup target beside the green Run button | seam_carving.exe |
+
+**`CMakeLists.txt` is the build-instructions file. `seam_carving.exe` is the program you run.**
+
+Click the green **Run** button. Visual Studio builds the program if needed and launches it.
+
+Expected output with the supplied image:
 
 ```text
 OpenCV setup successful!
@@ -75,76 +97,70 @@ Image width: 162
 Image height: 198
 ```
 
-The current program uses a fixed image path and does not accept command-line arguments.
+This confirms that the program can load OpenCV and read the test image. A console is expected; there is no graphical window yet. If the console closes too quickly, use **Debug > Start Without Debugging** (`Ctrl+F5`).
 
-The program currently prints to a console; it does not open an image window. If the console closes too quickly, try **Debug > Start Without Debugging** (`Ctrl+F5`). Its working directory must contain `assets/test.png`; either the project root or `out/build/windows-debug` works after a successful build.
+## Every time after setup
 
-## Optional: build and run from a terminal
+1. Pull the latest project changes.
+2. Open the project folder in Visual Studio.
+3. Check that **windows-debug** and **seam_carving.exe** are selected.
+4. Click the green **Run** button.
 
-The Visual Studio workflow above is sufficient. If you prefer the terminal, open **Developer PowerShell for Visual Studio** in the project root and run:
+There is no need to reinstall vcpkg or manually type build commands each time. Dependency changes may trigger another installation during configuration.
+
+## If something goes wrong
+
+| Problem | Fix |
+| --- | --- |
+| `windows-debug` is missing | Check that `CMakeUserPresets.json` exists in the project root, contains the example above, and has valid JSON. Reopen the folder if needed. |
+| vcpkg toolchain file cannot be found | Check your `VCPKG_ROOT` path and make sure vcpkg was cloned and bootstrapped. |
+| Compiler or Ninja cannot be found | Install the C++ workload and C++ CMake tools through Visual Studio Installer, then restart Visual Studio. |
+| OpenCV installation or configuration fails | Read the first error in the CMake/vcpkg output. Check your internet connection and installed C++ tools. |
+| `seam_carving.exe` is missing from the startup dropdown | Let CMake finish configuring successfully first. Check the CMake output for errors. |
+| `Failed to load image!` | The working directory must contain `assets/test.png`. Run from the project root or `out/build/windows-debug` after building. |
+| DLL missing when running a copied executable | Run from the original build folder with its generated DLLs. Copying only the `.exe` is insufficient. |
+| You changed the vcpkg path but CMake still uses the old one | After saving the correct path, use **Project > Delete Cache and Reconfigure** for the selected preset. This regenerates the local build cache. |
+
+The image path is relative to the program's working directory. CMake copies `assets` beside the executable after linking. If you change only an image and the build reports no work, the build-folder copy can be stale; running from the project root uses the source image directly.
+
+## Files and responsibilities
+
+| File/folder | Purpose |
+| --- | --- |
+| `src/main.cpp` | Current OpenCV image-loading test and program entry point. |
+| `include/` | Folder for project headers. |
+| `assets/test.png` | Test input image. |
+| `CMakeLists.txt` | Defines C++17, source files, OpenCV linking, and the asset-copy step. |
+| `CMakePresets.json` | Shared Ninja, Debug, and Windows build settings. |
+| `CMakeUserPresets.json` | Defines `windows-debug` and your local vcpkg path. |
+| `vcpkg.json` | Declares the `opencv4` dependency. |
+| `out/build/windows-debug/` | Generated executable, DLLs, dependencies, and build files. |
+
+CMake prepares the build instructions, Ninja runs them, the compiler builds the C++ code, and OpenCV provides image-processing functions. vcpkg supplies OpenCV to CMake through its toolchain file.
+
+## Team development notes
+
+- Keep your own vcpkg path locally. The current `.gitignore` does **not** exclude `CMakeUserPresets.json`, so do not commit a personal path change over a teammate's configuration.
+- Commit source code, headers, required assets, and shared build/dependency changes. Build output and Visual Studio caches are ignored by Git.
+- Add any new `.cpp` files to `add_executable(...)` in `CMakeLists.txt` so they are compiled.
+- Agree on function inputs and outputs before implementing separate algorithms. OpenCV's `cv::Mat` can represent images and energy maps; agree on the energy map's numeric type too.
+- The current preset targets **64-bit Windows**. macOS needs a separate toolchain/preset setup; the included `windows-debug` preset is not a Mac configuration.
+
+## Planned work
+
+- Calculate the energy map, for example using Sobel gradients.
+- Implement vertical and horizontal seam removal using dynamic programming.
+- Implement greedy and graph-cut alternatives.
+- Compare visual quality, seams, runtime, and complexity.
+
+The assignment allows OpenCV for image input/output and gradient calculations. The team must implement the seam-carving logic rather than use an existing content-aware resizing function.
+
+## Optional terminal workflow
+
+The Visual Studio Run-button workflow above is sufficient. For terminal use, open **Developer PowerShell for Visual Studio** in the repository root after completing the same vcpkg/preset setup:
 
 ```powershell
 cmake --preset windows-debug
 cmake --build out/build/windows-debug
 .\out\build\windows-debug\seam_carving.exe
 ```
-
-## How the build works
-
-| Component | Role |
-| --- | --- |
-| CMake | Reads the build instructions and generates Ninja build files. |
-| Ninja | Runs the compilation and linking steps. |
-| C++ compiler | Compiles the source using C++17. |
-| vcpkg | Installs OpenCV and makes it available to CMake through its toolchain file. |
-| OpenCV | Provides image loading and image-processing functions. |
-
-In `CMakeLists.txt`, `find_package(OpenCV REQUIRED)` locates OpenCV, and `target_link_libraries` links its libraries to the executable. A post-build command copies the `assets` folder beside the executable.
-
-In `src/main.cpp`, `cv::imread()` reads the image into a `cv::Mat`, which stores pixel data. `image.empty()` checks for a loading failure, while `image.cols` and `image.rows` give the width and height. Colour images loaded with the default settings use BGR channel order.
-
-## Project structure
-
-```text
-seam-carving27/
-├── assets/
-│   └── test.png             # Sample input image
-├── include/                 # Folder for project headers
-├── src/
-│   └── main.cpp             # Current OpenCV loading test
-├── CMakeLists.txt           # Build instructions
-├── CMakePresets.json        # Shared build settings
-├── CMakeUserPresets.json    # Local vcpkg path and runnable preset
-├── vcpkg.json               # Dependency manifest
-└── out/                     # Generated build files (ignored by Git)
-```
-
-## Troubleshooting
-
-| Problem | What to check |
-| --- | --- |
-| CMake cannot find the compiler | Use Developer PowerShell for Visual Studio and confirm the C++ workload is installed. |
-| Ninja cannot be found | Install Ninja or Visual Studio's C++ CMake tools and ensure Ninja is available in the terminal environment. |
-| vcpkg toolchain file cannot be found | Check `VCPKG_ROOT` in your local preset. It must point to the folder containing `scripts/buildsystems/vcpkg.cmake`. |
-| OpenCV configuration fails | Check the earlier vcpkg installation errors in the configure output and confirm dependency installation completed. |
-| `Failed to load image!` | Run from the project root or the build folder and check that `assets/test.png` exists there. |
-| A required DLL is missing | Run the executable from its build folder with the generated DLLs beside it; rebuild if needed. |
-
-Image paths are resolved relative to the working directory, not automatically relative to the executable. If you replace the input image, its printed dimensions will change. If you run from the build folder, rebuild after changing assets so the post-build copy can run; if the build reports no work, run from the project root to use the source assets directly.
-
-## Working as a team
-
-- Each teammate should configure and build locally using their own vcpkg path.
-- Share source files, assets, `CMakeLists.txt`, `CMakePresets.json`, and `vcpkg.json`.
-- Keep machine-specific paths in `CMakeUserPresets.json`; review changes before committing because the current `.gitignore` does not exclude this file.
-- Generated build files, executables, DLLs, and Visual Studio cache files are ignored by Git.
-- When adding a new `.cpp` file, add it to `add_executable(...)` in `CMakeLists.txt`.
-
-## Planned assignment work
-
-- Calculate an energy map from image gradients, for example using Sobel filters.
-- Find and remove vertical and horizontal seams using dynamic programming.
-- Implement greedy and graph-cut alternatives.
-- Compare seams, visual quality, runtime, and complexity.
-
-The assignment allows OpenCV for image input/output and gradient calculations. Seam-carving logic must be implemented by the team rather than calling an existing content-aware resizing function.
