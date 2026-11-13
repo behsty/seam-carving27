@@ -6,7 +6,7 @@ C++17 and OpenCV project for content-aware image resizing.
 
 ## Current status
 
-The build setup and OpenCV image-loading test are working. The program loads `assets/test.png` and prints its dimensions in a console. Energy-map calculation and the seam-carving algorithms are still to be implemented. There is no image window or resizing interface yet.
+The build setup, OpenCV image loading, and Sobel energy-map calculation are implemented. The program loads `assets/test.png`, saves an energy-map preview as `energy.png` in its working directory, and prints the image dimensions in a console. Seam-carving algorithms are still to be implemented. There is no image window or resizing interface yet.
 
 ## First-time setup on Windows
 
@@ -142,7 +142,7 @@ CMake prepares the build instructions, Ninja runs them, the compiler builds the 
 
 - Keep your own vcpkg path locally. The current `.gitignore` does **not** exclude `CMakeUserPresets.json`, so do not commit a personal path change over a teammate's configuration.
 - Commit source code, headers, required assets, and shared build/dependency changes. Build output and Visual Studio caches are ignored by Git.
-- Add any new `.cpp` files to `add_executable(...)` in `CMakeLists.txt` so they are compiled.
+- Put new `.cpp` files under `src/` (subfolders are supported). CMake automatically detects them on the next build; no source-list edit is needed. Keep only one `main()` under `src/`, and place separate test programs outside that folder. Put headers under `include/`.
 - Agree on function inputs and outputs before implementing separate algorithms. OpenCV's `cv::Mat` can represent images and energy maps; agree on the energy map's numeric type too.
 - The current preset targets **64-bit Windows**. macOS needs a separate toolchain/preset setup; the included `windows-debug` preset is not a Mac configuration.
 
