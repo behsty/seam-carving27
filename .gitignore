@@ -1,0 +1,28 @@
+
+# Visual Studio temporary files
+.vs/
+
+# CMake build files
+out/
+build/
+cmake-build-*/
+
+# Visual Studio generated files
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
+# Compiled C++ files
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.dll
+
+# Generated output images
+outputs/
+
+# Operating system files
+.DS_Store
+Thumbs.db
