@@ -31,23 +31,3 @@ std::vector<int> findVerticalSeamGraphCut(
 std::vector<int> findHorizontalSeamGraphCut(
     const cv::Mat& cost, double* maxflowMs = nullptr);
 
-// Generic seam removal; works for any Mat type (BGR image, index maps, ...).
-cv::Mat removeVerticalSeam(const cv::Mat& src, const std::vector<int>& seam);
-cv::Mat removeHorizontalSeam(const cv::Mat& src, const std::vector<int>& seam);
-
-struct GraphCutResult
-{
-    cv::Mat image;         // resized image
-    cv::Mat seamOverlay;   // original image with every removed seam drawn in red
-    double totalMs = 0.0;      // whole carving loop
-    double maxflowMs = 0.0;    // time spent only inside max-flow
-    int verticalRemoved = 0;
-    int horizontalRemoved = 0;
-};
-
-// Removes numVertical vertical seams, then numHorizontal horizontal seams,
-// recomputing the energy after every removal.
-GraphCutResult seamCarveGraphCut(
-    const cv::Mat& image, int numVertical, int numHorizontal,
-    const EnergyFn& energyFn,
-    const ProgressFn& progress = nullptr);
