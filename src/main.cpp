@@ -1,6 +1,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <opencv2/opencv.hpp>
@@ -8,6 +9,7 @@
 
 #include "energy.h"
 #include "graphcut.h"
+#include "greedy.h"
 
 int main()
 {
@@ -46,10 +48,6 @@ int main()
     std::cout << "Image width: " << image.cols << std::endl;
     std::cout << "Image height: " << image.rows << std::endl;
 
-    // ---- Graph cut (min-cut / max-flow) seam carving ----
-    std::cout << "\nGraph cut (Dinic): ";
-    std::cout << "removing " << numV << " vertical + " << numH << " horizontal seams\n";
-
     // One-line progress bar with elapsed time and estimated time remaining.
     // (The ETA is a little pessimistic: seams get faster as the image shrinks.)
     auto showProgress = [](int done, int total, double elapsedMs)
@@ -72,30 +70,87 @@ int main()
                 std::cout << "\n";
         };
 
-    GraphCutResult res;
-    try
+    // ---- Run every method with the same energy function and carving loop ----
+    struct Method
     {
-        res = seamCarveGraphCut(image, numV, numH, calculateEnergyMap, showProgress);
-    }
-    catch (const std::exception& ex)
+        std::string name;     // printed label
+        std::string prefix;   // output file prefix
+        SeamFinder findV;
+        SeamFinder findH;
+    };
+
+    double maxflowMs = 0.0;
+    std::vector<Method> methods = {
+        { "Greedy", "greedy",
+          findVerticalSeamGreedy, findHorizontalSeamGreedy },
+        { "Graph cut (Dinic)", "graphcut",
+          [&](const cv::Mat& e) { return findVerticalSeamGraphCut(e, &maxflowMs); },
+          [&](const cv::Mat& e) { return findHorizontalSeamGraphCut(e, &maxflowMs); } },
+    };
+
+    std::vector<CarveResult> results;
+    for (const Method& m : methods)
     {
-        std::cerr << "Error: " << ex.what() << std::endl;
-        return 1;
+        std::cout << "\n" << m.name << ": removing " << numV << " vertical + "
+            << numH << " horizontal seams\n";
+
+        CarveResult res;
+        try
+        {
+            res = seamCarve(image, numV, numH, calculateEnergyMap,
+                m.findV, m.findH, showProgress);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cerr << "Error: " << ex.what() << std::endl;
+            return 1;
+        }
+
+        const std::string resultFile = m.prefix + "_result.png";
+        const std::string seamsFile = m.prefix + "_seams.png";
+        if (!cv::imwrite(resultFile, res.image) || !cv::imwrite(seamsFile, res.seamOverlay))
+        {
+            std::cerr << "Failed to save " << resultFile << " / " << seamsFile << "\n";
+            return 1;
+        }
+        std::cout << "Saved " << resultFile << " and " << seamsFile << "\n";
+        results.push_back(res);
     }
 
-    bool ok1 = cv::imwrite("graphcut_result.png", res.image);
-    bool ok2 = cv::imwrite("graphcut_seams.png", res.seamOverlay);
-    if (!ok1) std::cerr << "Failed to save graphcut_result.png\n";
-    if (!ok2) std::cerr << "Failed to save graphcut_seams.png\n";
-    if (!ok1 || !ok2)
-        return 1;
+    // ---- Comparison table ----
+    const int seams = numV + numH;
+    std::cout << "\nOutput size: " << results[0].image.cols << "x"
+        << results[0].image.rows << "\n\n"
+        << std::left << std::setw(22) << "Method"
+        << std::right << std::setw(12) << "total ms"
+        << std::setw(12) << "energy ms"
+        << std::setw(12) << "seam ms"
+        << std::setw(14) << "ms/seam find"
+        << std::setw(16) << "avg seam cost" << "\n"
+        << std::string(88, '-') << "\n"
+        << std::fixed << std::setprecision(2);
+    for (size_t k = 0; k < methods.size(); ++k)
+    {
+        const CarveResult& r = results[k];
+        std::cout << std::left << std::setw(22) << methods[k].name
+            << std::right << std::setw(12) << r.totalMs
+            << std::setw(12) << r.energyMs
+            << std::setw(12) << r.seamMs
+            << std::setw(14) << r.seamMs / seams
+            << std::setw(16) << r.totalSeamCost / seams << "\n";
+    }
+    std::cout << "(graph cut: " << maxflowMs << " ms of its seam time was inside max-flow)\n";
 
-    std::cout << "Removed:       " << res.verticalRemoved << " vertical, "
-        << res.horizontalRemoved << " horizontal seams\n";
-    std::cout << "Output size:   " << res.image.cols << "x" << res.image.rows << "\n"
-        << "Total time:    " << res.totalMs << " ms\n"
-        << "Max-flow time: " << res.maxflowMs << " ms\n"
-        << "Saved graphcut_result.png and graphcut_seams.png\n";
+    // Graph cut finds the optimal seam, so greedy can never beat it.
+    // (Totals drift apart over many seams because the images diverge, but
+    // greedy is never cheaper on the same energy map.)
+    const double optCost = results[1].totalSeamCost;
+    if (optCost > 0)
+    {
+        std::cout << "Greedy seam cost vs graph cut (optimal): "
+            << std::showpos << (results[0].totalSeamCost / optCost - 1.0) * 100.0
+            << std::noshowpos << "%\n";
+    }
 
     return 0;
 }

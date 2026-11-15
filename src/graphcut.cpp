@@ -297,17 +297,39 @@ cv::Mat removeHorizontalSeam(const cv::Mat& src, const std::vector<int>& seam)
 }
 
 // ---------------------------------------------------------------------------
-// Carving loop
+// Seam cost
 // ---------------------------------------------------------------------------
-GraphCutResult seamCarveGraphCut(
+double verticalSeamCost(const cv::Mat& energy, const std::vector<int>& seam)
+{
+    double sum = 0.0;
+    for (int i = 0; i < energy.rows; ++i)
+        sum += energy.at<double>(i, seam[i]);
+    return sum;
+}
+
+double horizontalSeamCost(const cv::Mat& energy, const std::vector<int>& seam)
+{
+    double sum = 0.0;
+    for (int j = 0; j < energy.cols; ++j)
+        sum += energy.at<double>(seam[j], j);
+    return sum;
+}
+
+// ---------------------------------------------------------------------------
+// Generic carving loop (any seam finder)
+// ---------------------------------------------------------------------------
+CarveResult seamCarve(
     const cv::Mat& image, int numVertical, int numHorizontal,
-    const EnergyFn& energyFn, const ProgressFn& progress)
+    const EnergyFn& energyFn,
+    const SeamFinder& findVertical,
+    const SeamFinder& findHorizontal,
+    const ProgressFn& progress)
 {
     if (numVertical < 0 || numHorizontal < 0 ||
         numVertical >= image.cols || numHorizontal >= image.rows)
         throw std::runtime_error("Invalid number of seams to remove");
 
-    GraphCutResult res;
+    CarveResult res;
     res.seamOverlay = image.clone();
     const cv::Vec3b red(0, 0, 255);
 
@@ -319,11 +341,23 @@ GraphCutResult seamCarveGraphCut(
             origPos.at<cv::Vec2i>(y, x) = cv::Vec2i(x, y);
 
     cv::Mat cur = image.clone();
+    const int total = numVertical + numHorizontal;
     auto t0 = Clock::now();
 
-    auto costOf = [&](const cv::Mat& img)
+    auto timedEnergy = [&](const cv::Mat& img)
         {
-            return energyFn(img);
+            auto t = Clock::now();
+            cv::Mat e = energyFn(img);
+            res.energyMs += msSince(t);
+            return e;
+        };
+
+    auto timedFind = [&](const SeamFinder& finder, const cv::Mat& energy)
+        {
+            auto t = Clock::now();
+            std::vector<int> seam = finder(energy);
+            res.seamMs += msSince(t);
+            return seam;
         };
 
     auto mark = [&](int row, int col)
@@ -332,35 +366,59 @@ GraphCutResult seamCarveGraphCut(
             res.seamOverlay.at<cv::Vec3b>(p[1], p[0]) = red;
         };
 
+    auto report = [&]()
+        {
+            if (progress)
+                progress(res.verticalRemoved + res.horizontalRemoved, total, msSince(t0));
+        };
+
     for (int k = 0; k < numVertical; ++k)
     {
-        std::vector<int> seam =
-            findVerticalSeamGraphCut(costOf(cur), &res.maxflowMs);
+        cv::Mat energy = timedEnergy(cur);
+        std::vector<int> seam = timedFind(findVertical, energy);
+        res.totalSeamCost += verticalSeamCost(energy, seam);
         for (int i = 0; i < cur.rows; ++i)
             mark(i, seam[i]);
         cur = removeVerticalSeam(cur, seam);
         origPos = removeVerticalSeam(origPos, seam);
         ++res.verticalRemoved;
-        if (progress)
-            progress(res.verticalRemoved + res.horizontalRemoved,
-                numVertical + numHorizontal, msSince(t0));
+        report();
     }
 
     for (int k = 0; k < numHorizontal; ++k)
     {
-        std::vector<int> seam =
-            findHorizontalSeamGraphCut(costOf(cur), &res.maxflowMs);
+        cv::Mat energy = timedEnergy(cur);
+        std::vector<int> seam = timedFind(findHorizontal, energy);
+        res.totalSeamCost += horizontalSeamCost(energy, seam);
         for (int j = 0; j < cur.cols; ++j)
             mark(seam[j], j);
         cur = removeHorizontalSeam(cur, seam);
         origPos = removeHorizontalSeam(origPos, seam);
         ++res.horizontalRemoved;
-        if (progress)
-            progress(res.verticalRemoved + res.horizontalRemoved,
-                numVertical + numHorizontal, msSince(t0));
+        report();
     }
 
     res.image = cur;
     res.totalMs = msSince(t0);
+    return res;
+}
+
+// ---------------------------------------------------------------------------
+// Graph-cut carving = generic loop + graph-cut seam finders
+// ---------------------------------------------------------------------------
+GraphCutResult seamCarveGraphCut(
+    const cv::Mat& image, int numVertical, int numHorizontal,
+    const EnergyFn& energyFn, const ProgressFn& progress)
+{
+    double maxflowMs = 0.0;
+    CarveResult base = seamCarve(
+        image, numVertical, numHorizontal, energyFn,
+        [&](const cv::Mat& e) { return findVerticalSeamGraphCut(e, &maxflowMs); },
+        [&](const cv::Mat& e) { return findHorizontalSeamGraphCut(e, &maxflowMs); },
+        progress);
+
+    GraphCutResult res;
+    static_cast<CarveResult&>(res) = base;
+    res.maxflowMs = maxflowMs;
     return res;
 }
