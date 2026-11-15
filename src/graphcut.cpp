@@ -266,3 +266,101 @@ std::vector<int> findHorizontalSeamGraphCut(
     return findVerticalSeamGraphCut(costT, maxflowMs);
 }
 
+// ---------------------------------------------------------------------------
+// Seam removal
+// ---------------------------------------------------------------------------
+cv::Mat removeVerticalSeam(const cv::Mat& src, const std::vector<int>& seam)
+{
+    CV_Assert(static_cast<int>(seam.size()) == src.rows);
+    cv::Mat dst(src.rows, src.cols - 1, src.type());
+    const size_t es = src.elemSize();
+    for (int i = 0; i < src.rows; ++i)
+    {
+        const uchar* s = src.ptr<uchar>(i);
+        uchar* d = dst.ptr<uchar>(i);
+        const int k = seam[i];
+        std::memcpy(d, s, static_cast<size_t>(k) * es);
+        std::memcpy(d + static_cast<size_t>(k) * es,
+            s + static_cast<size_t>(k + 1) * es,
+            static_cast<size_t>(src.cols - k - 1) * es);
+    }
+    return dst;
+}
+
+cv::Mat removeHorizontalSeam(const cv::Mat& src, const std::vector<int>& seam)
+{
+    cv::Mat t, r, out;
+    cv::transpose(src, t);
+    r = removeVerticalSeam(t, seam);
+    cv::transpose(r, out);
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// Carving loop
+// ---------------------------------------------------------------------------
+GraphCutResult seamCarveGraphCut(
+    const cv::Mat& image, int numVertical, int numHorizontal,
+    const EnergyFn& energyFn, const ProgressFn& progress)
+{
+    if (numVertical < 0 || numHorizontal < 0 ||
+        numVertical >= image.cols || numHorizontal >= image.rows)
+        throw std::runtime_error("Invalid number of seams to remove");
+
+    GraphCutResult res;
+    res.seamOverlay = image.clone();
+    const cv::Vec3b red(0, 0, 255);
+
+    // origPos(i,j) = (x,y) in the ORIGINAL image of the pixel now at (i,j).
+    // Lets us draw every seam on the original picture.
+    cv::Mat origPos(image.rows, image.cols, CV_32SC2);
+    for (int y = 0; y < image.rows; ++y)
+        for (int x = 0; x < image.cols; ++x)
+            origPos.at<cv::Vec2i>(y, x) = cv::Vec2i(x, y);
+
+    cv::Mat cur = image.clone();
+    auto t0 = Clock::now();
+
+    auto costOf = [&](const cv::Mat& img)
+        {
+            return energyFn(img);
+        };
+
+    auto mark = [&](int row, int col)
+        {
+            cv::Vec2i p = origPos.at<cv::Vec2i>(row, col);
+            res.seamOverlay.at<cv::Vec3b>(p[1], p[0]) = red;
+        };
+
+    for (int k = 0; k < numVertical; ++k)
+    {
+        std::vector<int> seam =
+            findVerticalSeamGraphCut(costOf(cur), &res.maxflowMs);
+        for (int i = 0; i < cur.rows; ++i)
+            mark(i, seam[i]);
+        cur = removeVerticalSeam(cur, seam);
+        origPos = removeVerticalSeam(origPos, seam);
+        ++res.verticalRemoved;
+        if (progress)
+            progress(res.verticalRemoved + res.horizontalRemoved,
+                numVertical + numHorizontal, msSince(t0));
+    }
+
+    for (int k = 0; k < numHorizontal; ++k)
+    {
+        std::vector<int> seam =
+            findHorizontalSeamGraphCut(costOf(cur), &res.maxflowMs);
+        for (int j = 0; j < cur.cols; ++j)
+            mark(seam[j], j);
+        cur = removeHorizontalSeam(cur, seam);
+        origPos = removeHorizontalSeam(origPos, seam);
+        ++res.horizontalRemoved;
+        if (progress)
+            progress(res.verticalRemoved + res.horizontalRemoved,
+                numVertical + numHorizontal, msSince(t0));
+    }
+
+    res.image = cur;
+    res.totalMs = msSince(t0);
+    return res;
+}
