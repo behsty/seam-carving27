@@ -11,6 +11,14 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
+    },
+    {
+      "name": "release-build",
+      "hidden": true,
+      "description": "Optimised build (/O2). Use this for every timing reported in the comparison.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ]
 }

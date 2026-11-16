@@ -7,6 +7,10 @@
       "environment": {
         "VCPKG_ROOT": "C:/Users/alyy/tools/vcpkg"
       }
+    },
+    {
+      "name": "windows-release",
+      "inherits": [ "release-build", "windows-debug" ]
     }
   ]
 }

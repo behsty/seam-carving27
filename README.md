@@ -155,6 +155,10 @@ CMake prepares the build instructions, Ninja runs them, the compiler builds the 
 
 The assignment allows OpenCV for image input/output and gradient calculations. The team must implement the seam-carving logic rather than use an existing content-aware resizing function.
 
+## Release build for timings
+
+The `windows-debug` preset builds without optimisation, so its timings are much slower and don't compare the methods fairly. For any timing you put in the report, select the **windows-release** preset in the configuration dropdown and run again. It builds into `out/build/windows-release` and uses the same `VCPKG_ROOT` you set for `windows-debug`, so there is nothing else to configure. The program prints `Build: Release` or `Build: Debug` above the timing table.
+
 ## Running the tests
 
 `tests/test_seams.cpp` builds into a second program, `seam_tests.exe`. It checks the DP seam finder against brute force, checks that graph cut finds seams of the same (optimal) cost, checks that greedy is never cheaper than DP, and covers edge cases plus an end-to-end `seamCarve()` run. It prints `N checks, 0 failed` and exits with 0 when everything passes.

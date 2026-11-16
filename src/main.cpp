@@ -126,7 +126,13 @@ int main()
 
     // ---- Comparison table ----
     const int seams = numV + numH;
-    std::cout << "\nOutput size: " << results[0].image.cols << "x"
+#ifdef NDEBUG
+    std::cout << "\nBuild: Release (timings are representative)\n";
+#else
+    std::cout << "\nBuild: Debug (timings are NOT representative; "
+        "use the windows-release preset for reported numbers)\n";
+#endif
+    std::cout << "Output size: " << results[0].image.cols << "x"
         << results[0].image.rows << "\n\n"
         << std::left << std::setw(22) << "Method"
         << std::right << std::setw(12) << "total ms"
