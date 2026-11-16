@@ -1,49 +1,62 @@
-# Seam Carving — Assignment 2
+# Seam Carving
 
-C++17 and OpenCV project for content-aware image resizing.
+C++17 and OpenCV implementation of **seam carving**, a content-aware image resizing method. The program removes the least important connected paths of pixels (seams) one at a time, so that the main objects in an image keep their shape while the image gets smaller.
 
-**For teammates:** complete the one-time Windows setup below. After that, click Visual Studio's green Run button to build and run. OpenCV is installed automatically through vcpkg during CMake configuration.
+Seams are found with three methods, which are compared on the same images and target sizes:
 
-## Current status
+- **Dynamic programming**: optimal seam, the reference method
+- **Greedy**: picks the cheapest pixel row by row, without looking ahead
+- **Graph cut**: optimal seam found as a minimum s–t cut (max-flow)
 
-The build setup, OpenCV image loading, and Sobel energy-map calculation are implemented. The program loads `assets/test.png`, saves an energy-map preview as `energy.png` in its working directory, and prints the image dimensions in a console. Seam-carving algorithms are still to be implemented. There is no image window or resizing interface yet.
+<!-- Demo GIF: add e.g. docs/images/dp_steps.gif here -->
 
-## First-time setup on Windows
+## Features
+
+- Energy map from Sobel gradients
+- Vertical and horizontal seam removal, resizing to any smaller target size
+- Dynamic programming plus two variants for the analysis:
+  - **compact memory**: keeps only two cost rows instead of the full table
+  - **parallel rows**: each row is computed across several threads (OpenMP)
+- Greedy and graph-cut seam finders
+- Comparison table of runtime and seam cost for every method
+- **Step-by-step visualization**: every seam drawn in red as it is removed, optionally saved as a video
+- **Interactive mode**: width, height and method sliders; carve on Enter
+- Correctness tests, including DP against brute force and graph cut against DP
+
+OpenCV is used only for image input and output, gradient (Sobel) computation and display. The seam finding and seam removal are implemented in this project; no built-in content-aware resizing function is used.
+
+## Setup (Windows)
 
 ### 1. Install the Visual Studio C++ tools
 
 Open **Visual Studio Installer**, choose **Modify** for your Visual Studio installation, and install:
 
-- **Desktop development with C++** workload.
-- The MSVC x64/x86 compiler tools and a Windows SDK.
-- **C++ CMake tools for Windows**, including CMake and Ninja.
+- the **Desktop development with C++** workload
+- the MSVC x64/x86 compiler tools and a Windows SDK
+- **C++ CMake tools for Windows**, which include CMake and Ninja
 
-Use the full **Visual Studio** application for these instructions. Visual Studio Code has a different setup. The preset files require CMake 3.21 or newer.
+These instructions are for the full **Visual Studio** application. Visual Studio Code needs a different setup. CMake 3.21 or newer is required.
 
 ### 2. Clone the repository
 
-Clone this repository using GitHub Desktop or Git. If you already have it, pull the latest changes before continuing.
-
-Each teammate needs their own local build. You do not need to copy another teammate's `out` folder.
+```powershell
+git clone https://github.com/behsty/seam-carving27.git
+```
 
 ### 3. Install vcpkg
 
-If you already have a working vcpkg installation, skip to step 4.
-
-Open PowerShell and run the following example commands. Git must be installed and available in the terminal:
+vcpkg downloads and builds OpenCV for you; you do not need to install OpenCV yourself. If you already have vcpkg, skip to step 4.
 
 ```powershell
 git clone https://github.com/microsoft/vcpkg.git C:/tools/vcpkg
 & C:/tools/vcpkg/bootstrap-vcpkg.bat
 ```
 
-You can choose a different folder if needed; use that same folder in the next step. Keep vcpkg outside this repository.
+You can use a different folder, but keep vcpkg **outside** this repository.
 
-**You do not need to install OpenCV manually or set up its library paths.** The project's `vcpkg.json` declares OpenCV as a dependency.
+### 4. Tell CMake where vcpkg is
 
-### 4. Set your own vcpkg path
-
-In the project root, open `CMakeUserPresets.json`. If it is missing, create it using this content:
+In the project root, create `CMakeUserPresets.json` with your vcpkg folder:
 
 ```json
 {
@@ -52,130 +65,213 @@ In the project root, open `CMakeUserPresets.json`. If it is missing, create it u
     {
       "name": "windows-debug",
       "inherits": "vcpkg-base",
-      "environment": {
-        "VCPKG_ROOT": "C:/tools/vcpkg"
-      }
+      "environment": { "VCPKG_ROOT": "C:/tools/vcpkg" }
+    },
+    {
+      "name": "windows-release",
+      "inherits": [ "release-build", "windows-debug" ]
     }
   ]
 }
 ```
 
-Change **only the `VCPKG_ROOT` value** to your vcpkg installation folder. For example, if you installed it at `D:\tools\vcpkg`, enter `D:/tools/vcpkg` in the JSON.
+- Use forward slashes and a full path, e.g. `C:/tools/vcpkg` (not `C:tools/vcpkg`).
+- The folder must contain `scripts/buildsystems/vcpkg.cmake`.
+- This file is personal to your computer. **Do not commit it.**
 
-The existing file may contain `C:/Users/alyy/tools/vcpkg`. That is Alyssa's local path; replace it with yours. Keep the preset name `windows-debug` unchanged.
+### 5. Open the project and configure
 
-Save the file. The folder you specify must contain `scripts/buildsystems/vcpkg.cmake`.
+1. In Visual Studio, choose **File > Open > Folder** and select the repository root (the folder containing `CMakeLists.txt`).
+2. In the configuration dropdown at the top, choose:
+   - **windows-debug** while developing, or
+   - **windows-release** for any timings you report (Debug timings are much slower and not representative).
+3. Wait for **CMake generation finished** in the Output window. If it does not start, use **Project > Configure Cache**.
 
-### 5. Open the project and let CMake configure
+The first configuration needs an internet connection and can take 20–40 minutes, because vcpkg builds OpenCV from source. Later configurations are fast.
 
-1. In Visual Studio, choose **File > Open > Folder**.
-2. Select the repository root folder containing `CMakeLists.txt`.
-3. Select **windows-debug** in the configuration dropdown at the top.
-4. Wait for CMake configuration to finish. If it does not start automatically, use **Project > Configure Cache**.
+### 6. Build and run
 
-An internet connection is needed for the first dependency installation. vcpkg downloads and builds OpenCV and its dependencies, so the first configuration can take a while. Check the CMake output for completion or errors before trying to run.
+1. Build with **Build > Build All** (`Ctrl+Shift+B`).
+2. Next to the green Run button, select **seam_carving.exe** as the startup item.
+3. Click Run.
 
-### 6. Select the startup target and click Run
-
-At the top of Visual Studio, use these selections:
-
-| Toolbar setting | Select |
-| --- | --- |
-| Run location | Local Machine |
-| Build/configure preset | windows-debug |
-| Startup target beside the green Run button | seam_carving.exe |
-
-**`CMakeLists.txt` is the build-instructions file. `seam_carving.exe` is the program you run.**
-
-Click the green **Run** button. Visual Studio builds the program if needed and launches it.
-
-Expected output with the supplied image:
+The program carves `assets/sky2.png` 50 columns narrower with every method and prints a comparison table:
 
 ```text
-OpenCV setup successful!
-Image width: 162
-Image height: 198
+Image width: 250
+Image height: 168
+...
+Method                    total ms   energy ms     seam ms  ms/seam find   avg seam cost
+----------------------------------------------------------------------------------------
+Dynamic programming         181.29       74.72       17.23          0.34         4231.51
+DP (compact memory)         178.61       70.48        8.56          0.17         4231.51
+DP (parallel rows)          209.97       76.32       18.36          0.37         4231.51
+Greedy                      188.80       71.81        0.58          0.01        12329.32
+Graph cut                189246.33       70.79   188982.80       3779.66         4230.49
 ```
 
-This confirms that the program can load OpenCV and read the test image. A console is expected; there is no graphical window yet. If the console closes too quickly, use **Debug > Start Without Debugging** (`Ctrl+F5`).
+After setup, the routine is: pull the latest changes, open the folder, check the preset and startup item, and click Run.
 
-## Every time after setup
+## Running the program
 
-1. Pull the latest project changes.
-2. Open the project folder in Visual Studio.
-3. Check that **windows-debug** and **seam_carving.exe** are selected.
-4. Click the green **Run** button.
+To pass options, run `seam_carving.exe` from its build folder (so it can find `assets/`) in a **Developer PowerShell** (see [Terminal workflow](#terminal-workflow)):
 
-There is no need to reinstall vcpkg or manually type build commands each time. Dependency changes may trigger another installation during configuration.
+```powershell
+cd out\build\windows-release
+.\seam_carving.exe [options]
+```
 
-## If something goes wrong
+Clicking Visual Studio's Run button runs normal mode with no options.
 
-| Problem | Fix |
+### All options
+
+| Option | What it does | Default |
+| --- | --- | --- |
+| `--image <file>` | Image to carve | `assets/sky2.png` |
+| `--width <W>` | Target width, from 1 to the original width | 50 columns narrower |
+| `--height <H>` | Target height, from 1 to the original height | original height |
+| `--visualize` | Show every seam (in red) being removed, step by step | off |
+| `--video` | Save each method's steps as `<method>_steps.mp4` (`.avi` if MP4 is unavailable) | off |
+| `--delay <ms>` | Pause per seam in the window (with `--visualize` or `--interactive`) | 1 |
+| `--interactive` | Slider mode: choose the size and method, then carve | off |
+
+Options can be combined in any order. A target larger than the image, or equal to the original size, prints an error.
+
+### 1. Normal mode: compare all methods
+
+Runs every method on the same image and target size, saves the results and prints the comparison table, including each method's seam cost compared with DP.
+
+```powershell
+.\seam_carving.exe
+.\seam_carving.exe --image assets/surfer.png --width 1150
+.\seam_carving.exe --image assets/test.png --width 120 --height 150
+```
+
+Methods run in this order: Dynamic programming, DP (compact memory), DP (parallel rows), Greedy, Graph cut.
+
+Files saved in the current folder (overwritten on every run):
+
+| File | Contents |
 | --- | --- |
-| `windows-debug` is missing | Check that `CMakeUserPresets.json` exists in the project root, contains the example above, and has valid JSON. Reopen the folder if needed. |
-| vcpkg toolchain file cannot be found | Check your `VCPKG_ROOT` path and make sure vcpkg was cloned and bootstrapped. |
-| Compiler or Ninja cannot be found | Install the C++ workload and C++ CMake tools through Visual Studio Installer, then restart Visual Studio. |
-| OpenCV installation or configuration fails | Read the first error in the CMake/vcpkg output. Check your internet connection and installed C++ tools. |
-| `seam_carving.exe` is missing from the startup dropdown | Let CMake finish configuring successfully first. Check the CMake output for errors. |
-| `Failed to load image!` | The working directory must contain `assets/test.png`. Run from the project root or `out/build/windows-debug` after building. |
-| DLL missing when running a copied executable | Run from the original build folder with its generated DLLs. Copying only the `.exe` is insufficient. |
-| You changed the vcpkg path but CMake still uses the old one | After saving the correct path, use **Project > Delete Cache and Reconfigure** for the selected preset. This regenerates the local build cache. |
+| `energy.png` | Energy map of the input image |
+| `<method>_result.png` | The resized image |
+| `<method>_seams.png` | The original image with every removed seam in red |
 
-The image path is relative to the program's working directory. CMake copies `assets` beside the executable after linking. If you change only an image and the build reports no work, the build-folder copy can be stale; running from the project root uses the source image directly.
+Graph cut is much slower than the other methods (about 0.5 s per seam on a 250×168 image, and more on larger ones). On large images, use a small size change.
 
-## Files and responsibilities
+### 2. Step-by-step visualization
 
-| File/folder | Purpose |
+```powershell
+.\seam_carving.exe --visualize --delay 30
+.\seam_carving.exe --image assets/sky.png --width 450 --visualize --delay 50
+.\seam_carving.exe --video                  # save videos only, no window
+.\seam_carving.exe --visualize --video      # show and save
+```
+
+Each method plays in its own window.
+
+| Key | Action |
 | --- | --- |
-| `src/main.cpp` | Current OpenCV image-loading test and program entry point. |
-| `include/` | Folder for project headers. |
-| `assets/test.png` | Test input image. |
-| `CMakeLists.txt` | Defines C++17, source files, OpenCV linking, and the asset-copy step. |
-| `CMakePresets.json` | Shared Ninja, Debug, and Windows build settings. |
-| `CMakeUserPresets.json` | Defines `windows-debug` and your local vcpkg path. |
-| `vcpkg.json` | Declares the `opencv4` dependency. |
-| `out/build/windows-debug/` | Generated executable, DLLs, dependencies, and build files. |
+| Esc | Skip the rest of this method's animation |
+| Any key (on the final frame) | Continue to the next method |
 
-CMake prepares the build instructions, Ninja runs them, the compiler builds the C++ code, and OpenCV provides image-processing functions. vcpkg supplies OpenCV to CMake through its toolchain file.
+Drawing time is excluded from the timing table, and the results are identical to a run without `--visualize`.
 
-## Team development notes
+### 3. Interactive mode
 
-- Keep your own vcpkg path locally. The current `.gitignore` does **not** exclude `CMakeUserPresets.json`, so do not commit a personal path change over a teammate's configuration.
-- Commit source code, headers, required assets, and shared build/dependency changes. Build output and Visual Studio caches are ignored by Git.
-- Put new `.cpp` files under `src/` (subfolders are supported). CMake automatically detects them on the next build; no source-list edit is needed. Keep only one `main()` under `src/`, and place separate test programs outside that folder. Put headers under `include/`.
-- Agree on function inputs and outputs before implementing separate algorithms. OpenCV's `cv::Mat` can represent images and energy maps; agree on the energy map's numeric type too.
-- The current preset targets **64-bit Windows**. macOS needs a separate toolchain/preset setup; the included `windows-debug` preset is not a Mac configuration.
+```powershell
+.\seam_carving.exe --interactive
+.\seam_carving.exe --interactive --image assets/surfer.png --delay 20
+.\seam_carving.exe --interactive --width 200 --height 150   # starting slider values
+```
 
-## Planned work
+| Control | Action |
+| --- | --- |
+| Width / Height sliders | Set the target size. Everything outside the yellow box will be removed. Nothing is carved while dragging. |
+| Method slider | 0 DP, 1 DP (compact memory), 2 DP (parallel rows), 3 Greedy, 4 Graph cut |
+| Enter | Carve, with the step-by-step visualization |
+| Any key (after carving) | Return to the sliders to try another size or method |
+| Esc | Skip the animation while carving; quit from the slider screen |
 
-- Calculate the energy map, for example using Sobel gradients.
-- Implement vertical and horizontal seam removal using dynamic programming.
-- Implement greedy and graph-cut alternatives.
-- Compare visual quality, seams, runtime, and complexity.
-
-The assignment allows OpenCV for image input/output and gradient calculations. The team must implement the seam-carving logic rather than use an existing content-aware resizing function.
-
-## Release build for timings
-
-The `windows-debug` preset builds without optimisation, so its timings are much slower and don't compare the methods fairly. For any timing you put in the report, select the **windows-release** preset in the configuration dropdown and run again. It builds into `out/build/windows-release` and uses the same `VCPKG_ROOT` you set for `windows-debug`, so there is nothing else to configure. The program prints `Build: Release` or `Build: Debug` above the timing table.
+Each carve prints its time and average seam cost, and saves `interactive_result.png` and `interactive_seams.png`.
 
 ## Running the tests
 
-`tests/test_seams.cpp` builds into a second program, `seam_tests.exe`. It checks the DP seam finder against brute force, checks that graph cut finds seams of the same (optimal) cost, checks that greedy is never cheaper than DP, and covers edge cases plus an end-to-end `seamCarve()` run. It prints `N checks, 0 failed` and exits with 0 when everything passes.
+`seam_tests.exe` checks that:
 
-In Visual Studio, pick `seam_tests.exe` as the startup target and click Run. From a terminal:
+- DP matches a brute-force search over every possible seam
+- the compact and parallel DP variants return the same seam as full DP
+- graph cut finds seams of the same (optimal) cost as DP
+- greedy is never cheaper than DP
+- edge cases (1 column, 1 row, uniform energy) work
+- a full carving run removes the expected pixels
 
-```powershell
-cmake --build out/build/windows-debug
-ctest --test-dir out/build/windows-debug --output-on-failure
-```
-
-## Optional terminal workflow
-
-The Visual Studio Run-button workflow above is sufficient. For terminal use, open **Developer PowerShell for Visual Studio** in the repository root after completing the same vcpkg/preset setup:
+It prints `N checks, 0 failed` when everything passes. In Visual Studio, select `seam_tests.exe` as the startup item and click Run, or from a terminal:
 
 ```powershell
-cmake --preset windows-debug
-cmake --build out/build/windows-debug
-.\out\build\windows-debug\seam_carving.exe
+ctest --test-dir out/build/windows-release --output-on-failure
 ```
+
+## Terminal workflow
+
+Build commands must run in a **Developer PowerShell**, which knows where the compiler and its headers are. Open one with **View > Terminal** in Visual Studio, or **Developer PowerShell for VS** from the Start menu. In a normal PowerShell, first run:
+
+```powershell
+& "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64
+```
+
+Then, from the repository root:
+
+```powershell
+cmake --preset windows-release             # configure (first time, or after adding files)
+cmake --build out/build/windows-release    # build
+.\out\build\windows-release\seam_carving.exe
+```
+
+Use `windows-debug` in place of `windows-release` for a Debug build.
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| `windows-debug` / `windows-release` is missing | Check that `CMakeUserPresets.json` exists in the project root and is valid JSON (step 4). Reopen the folder. |
+| `Could not find toolchain file` | `VCPKG_ROOT` in `CMakeUserPresets.json` is wrong. Fix it, then **Project > Delete Cache and Reconfigure**. |
+| `vcpkg install failed` … `requires a manifest with a specified baseline` | You are using Visual Studio's built-in vcpkg. Install your own vcpkg (step 3) and point `VCPKG_ROOT` to it. |
+| CMake still uses an old vcpkg path | **Project > Delete Cache and Reconfigure**, or delete `out/build/<preset>`. |
+| `Cannot open include file: 'limits'` (or `string`, `algorithm`) | The terminal is not a Developer PowerShell. See [Terminal workflow](#terminal-workflow). |
+| Compiler or Ninja cannot be found | Install the C++ workload and C++ CMake tools (step 1), then restart Visual Studio. |
+| `seam_carving.exe` is missing from the startup dropdown | Build first (`Ctrl+Shift+B`). If it is still missing, switch Solution Explorer to **CMake Targets View** and right-click **seam_carving > Set as Startup Item**. |
+| `Failed to load image: <path>` | Image paths are relative to the folder you run from. Run from `out/build/<preset>` (where `assets/` is copied after building) or from the project root. If you changed only an image, rebuild so the copy is updated. |
+| A DLL is missing when running a copied `.exe` | Run it from its build folder, which contains the DLLs it needs. |
+
+## Project structure
+
+| File / folder | Purpose |
+| --- | --- |
+| `src/main.cpp` | Entry point: options, normal mode, comparison table |
+| `src/energy.cpp`, `include/energy.h` | Sobel energy map |
+| `src/dp.cpp`, `include/dp.h` | Dynamic programming seam finder, plus compact-memory and parallel variants |
+| `src/greedy.cpp`, `include/greedy.h` | Greedy seam finder |
+| `src/graphcut.cpp`, `include/graphcut.h` | Graph-cut (min-cut / max-flow) seam finder |
+| `src/seam.cpp`, `include/seam.h` | Seam removal, seam cost, the shared carving loop and `carveToSize` |
+| `src/visualize.cpp`, `include/visualize.h` | Step-by-step visualization and video output |
+| `src/interactive.cpp`, `include/interactive.h` | Interactive slider mode |
+| `tests/test_seams.cpp` | Correctness tests (`seam_tests.exe`) |
+| `assets/` | Test images (copied next to the executable when building) |
+| `CMakeLists.txt` | Build definition: sources, OpenCV, OpenMP, asset copy, tests |
+| `CMakePresets.json` | Shared build settings (Ninja, vcpkg, Debug/Release) |
+| `vcpkg.json` | Declares the `opencv4` dependency |
+
+Every seam finder takes an energy map and returns one seam (`std::vector<int>`, one index per row or column), so all methods share the same carving loop and are compared fairly.
+
+New `.cpp` files under `src/` are picked up automatically after reconfiguring. Keep exactly one `main()` under `src/`, and put headers under `include/`.
+
+The presets target 64-bit Windows; macOS and Linux need their own toolchain setup.
+
+Demo video: *(YouTube link)*  To be updated
+
+## References
+
+- S. Avidan and A. Shamir, [Seam carving for content-aware image resizing](https://dl.acm.org/doi/10.1145/1275808.1276390), SIGGRAPH 2007.
+- M. Rubinstein, A. Shamir and S. Avidan, [Improved seam carving for video retargeting](https://dl.acm.org/doi/pdf/10.1145/1360612.1360615), SIGGRAPH 2008.
+- Surfer image credit goes to Kiril Dobrev from [Pixabay](https://pixabay.com/photos/blue-beach-surf-travel-surfer-4145659/).
