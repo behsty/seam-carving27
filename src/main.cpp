@@ -1,8 +1,9 @@
-
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/utils/logger.hpp>
@@ -11,22 +12,87 @@
 #include "energy.h"
 #include "graphcut.h"
 #include "greedy.h"
+#include "interactive.h"
+#include "seam.h"
+#include "visualize.h"
 
-int main()
+int main(int argc, char** argv)
 {
     // Hide informational probes for optional plugins; retain warnings and errors.
     cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
 
+    // ---- Options ----
+    //   --image <file>             image to carve (default assets/sky2.png)
+    //   --width <W> --height <H>   target size (default: 50 columns narrower)
+    //   --interactive              setup window with width/height/method
+    //                              sliders; Enter carves (bonus: user interaction)
+    //   --visualize   show each method's seams being removed, step by step
+    //   --video       save each method's steps as <method>_steps.mp4 (or .avi)
+    //   --delay <ms>  pause per seam in the window (default 1)
+    // Without --visualize/--video nothing is drawn, so timings stay representative.
     std::string path = "assets/sky2.png";
-    int numV = 50; // vertical seams to remove(image gets narrower)
-    int numH = 0;   // horizontal seams to remove (image gets shorter)
+    int targetW = -1; // -1 = keep original width
+    int targetH = -1; // -1 = keep original height
+    bool interactive = false;
+    bool visualize = false;
+    bool saveVideo = false;
+    int delayMs = 1;
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string arg = argv[i];
+        if (arg == "--interactive")
+            interactive = true;
+        else if (arg == "--visualize")
+            visualize = true;
+        else if (arg == "--video")
+            saveVideo = true;
+        else if (arg == "--delay" && i + 1 < argc)
+            delayMs = std::max(1, std::atoi(argv[++i]));
+        else if (arg == "--image" && i + 1 < argc)
+            path = argv[++i];
+        else if (arg == "--width" && i + 1 < argc)
+            targetW = std::atoi(argv[++i]);
+        else if (arg == "--height" && i + 1 < argc)
+            targetH = std::atoi(argv[++i]);
+        else
+        {
+            std::cerr << "Unknown option: " << arg << "\n"
+                << "Usage: seam_carving [--image file] [--width W] [--height H] [--interactive]\n"
+                << "                    [--visualize] [--video] [--delay ms]\n";
+            return 1;
+        }
+    }
+
+    int numV = 50; // vertical seams to remove (image gets narrower)
+    int numH = 0;  // horizontal seams to remove (image gets shorter)
 
     cv::Mat image = cv::imread(path);
 
     if (image.empty())
     {
-        std::cout << "Failed to load image!" << std::endl;
+        std::cout << "Failed to load image: " << path << std::endl;
         return 1;
+    }
+
+    // Target size -> number of seams. Without --width/--height, keep the
+    // default of 50 vertical seams.
+    if (!interactive && (targetW != -1 || targetH != -1))
+    {
+        const int w = targetW == -1 ? image.cols : targetW;
+        const int h = targetH == -1 ? image.rows : targetH;
+        if (w < 1 || h < 1 || w > image.cols || h > image.rows)
+        {
+            std::cerr << "Target size must be between 1x1 and the original size ("
+                << image.cols << "x" << image.rows << ")\n";
+            return 1;
+        }
+        if (w == image.cols && h == image.rows)
+        {
+            std::cerr << "Target size equals the original size: nothing to carve\n";
+            return 1;
+        }
+        numV = image.cols - w;
+        numH = image.rows - h;
     }
     cv::Mat energy = calculateEnergyMap(image);
 
@@ -72,18 +138,11 @@ int main()
         };
 
     // ---- Run every method with the same energy function and carving loop ----
-    struct Method
-    {
-        std::string name;     // printed label
-        std::string prefix;   // output file prefix
-        SeamFinder findV;
-        SeamFinder findH;
-    };
 
     double maxflowMs = 0.0;
     // Dynamic programming is first: it is the reference (optimal) method the
     // others are compared against below.
-    std::vector<Method> methods = {
+    std::vector<SeamMethod> methods = {
         { "Dynamic programming", "dp",
           findVerticalSeamDP, findHorizontalSeamDP },
         { "DP (compact memory)", "dp_compact",
@@ -92,22 +151,38 @@ int main()
           findVerticalSeamDPParallel, findHorizontalSeamDPParallel },
         { "Greedy", "greedy",
           findVerticalSeamGreedy, findHorizontalSeamGreedy },
-        { "Graph cut (Dinic)", "graphcut",
+        { "Graph cut", "graphcut",
           [&](const cv::Mat& e) { return findVerticalSeamGraphCut(e, &maxflowMs); },
           [&](const cv::Mat& e) { return findHorizontalSeamGraphCut(e, &maxflowMs); } },
     };
 
+    // Interactive mode: sliders first, carve on Enter (no comparison table).
+    if (interactive)
+        return runInteractive(image, calculateEnergyMap, methods, delayMs,
+            targetW, targetH);
+
     std::vector<CarveResult> results;
-    for (const Method& m : methods)
+    for (const SeamMethod& m : methods)
     {
         std::cout << "\n" << m.name << ": removing " << numV << " vertical + "
             << numH << " horizontal seams\n";
+
+        // Optional step-by-step visualization (off by default).
+        std::unique_ptr<SeamVisualizer> vis;
+        StepFn onStep;
+        if (visualize || saveVideo)
+        {
+            vis = std::make_unique<SeamVisualizer>(m.name, image.size(), numV + numH,
+                visualize, delayMs, saveVideo ? m.prefix + "_steps.mp4" : "");
+            onStep = [&vis](const cv::Mat& img, const std::vector<int>& seam, bool vertical)
+                { (*vis)(img, seam, vertical); };
+        }
 
         CarveResult res;
         try
         {
             res = seamCarve(image, numV, numH, calculateEnergyMap,
-                m.findV, m.findH, showProgress);
+                m.findV, m.findH, showProgress, onStep);
         }
         catch (const std::exception& ex)
         {
@@ -123,6 +198,13 @@ int main()
             return 1;
         }
         std::cout << "Saved " << resultFile << " and " << seamsFile << "\n";
+        if (vis)
+        {
+            vis->showFinal(res.image);
+            const std::string video = vis->finish();
+            if (!video.empty())
+                std::cout << "Saved " << video << "\n";
+        }
         results.push_back(res);
     }
 

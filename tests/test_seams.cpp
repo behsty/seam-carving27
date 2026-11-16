@@ -28,6 +28,7 @@
 #include "dp.h"
 #include "graphcut.h"
 #include "greedy.h"
+#include "seam.h"
 
 namespace
 {
