@@ -7,6 +7,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/utils/logger.hpp>
 
+#include "dp.h"
 #include "energy.h"
 #include "graphcut.h"
 #include "greedy.h"
@@ -80,7 +81,11 @@ int main()
     };
 
     double maxflowMs = 0.0;
+    // Dynamic programming is first: it is the reference (optimal) method the
+    // others are compared against below.
     std::vector<Method> methods = {
+        { "Dynamic programming", "dp",
+          findVerticalSeamDP, findHorizontalSeamDP },
         { "Greedy", "greedy",
           findVerticalSeamGreedy, findHorizontalSeamGreedy },
         { "Graph cut (Dinic)", "graphcut",
@@ -141,15 +146,19 @@ int main()
     }
     std::cout << "(graph cut: " << maxflowMs << " ms of its seam time was inside max-flow)\n";
 
-    // Graph cut finds the optimal seam, so greedy can never beat it.
-    // (Totals drift apart over many seams because the images diverge, but
-    // greedy is never cheaper on the same energy map.)
-    const double optCost = results[1].totalSeamCost;
+    // DP and graph cut both find the optimal seam, so on the same energy map
+    // graph cut should match DP and greedy can never be cheaper. (Totals can
+    // still drift slightly over many seams: when two seams tie, the methods
+    // may pick different ones, and the images then diverge.)
+    const double optCost = results[0].totalSeamCost;
     if (optCost > 0)
     {
-        std::cout << "Greedy seam cost vs graph cut (optimal): "
-            << std::showpos << (results[0].totalSeamCost / optCost - 1.0) * 100.0
-            << std::noshowpos << "%\n";
+        for (size_t k = 1; k < methods.size(); ++k)
+        {
+            std::cout << methods[k].name << " seam cost vs DP (optimal): "
+                << std::showpos << (results[k].totalSeamCost / optCost - 1.0) * 100.0
+                << std::noshowpos << "%\n";
+        }
     }
 
     return 0;
