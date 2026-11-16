@@ -155,6 +155,17 @@ CMake prepares the build instructions, Ninja runs them, the compiler builds the 
 
 The assignment allows OpenCV for image input/output and gradient calculations. The team must implement the seam-carving logic rather than use an existing content-aware resizing function.
 
+## Running the tests
+
+`tests/test_seams.cpp` builds into a second program, `seam_tests.exe`. It checks the DP seam finder against brute force, checks that graph cut finds seams of the same (optimal) cost, checks that greedy is never cheaper than DP, and covers edge cases plus an end-to-end `seamCarve()` run. It prints `N checks, 0 failed` and exits with 0 when everything passes.
+
+In Visual Studio, pick `seam_tests.exe` as the startup target and click Run. From a terminal:
+
+```powershell
+cmake --build out/build/windows-debug
+ctest --test-dir out/build/windows-debug --output-on-failure
+```
+
 ## Optional terminal workflow
 
 The Visual Studio Run-button workflow above is sufficient. For terminal use, open **Developer PowerShell for Visual Studio** in the repository root after completing the same vcpkg/preset setup:
