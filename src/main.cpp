@@ -86,6 +86,8 @@ int main()
     std::vector<Method> methods = {
         { "Dynamic programming", "dp",
           findVerticalSeamDP, findHorizontalSeamDP },
+        { "DP (compact memory)", "dp_compact",
+          findVerticalSeamDPCompact, findHorizontalSeamDPCompact },
         { "Greedy", "greedy",
           findVerticalSeamGreedy, findHorizontalSeamGreedy },
         { "Graph cut (Dinic)", "graphcut",

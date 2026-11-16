@@ -26,3 +26,21 @@ std::vector<int> findVerticalSeamDP(const cv::Mat& energy);
 
 // Same on the transposed energy. Returns seam[j] = row to remove in column j.
 std::vector<int> findHorizontalSeamDP(const cv::Mat& energy);
+
+// ---------------------------------------------------------------------------
+// Memory-reduced DP ("do we need to maintain the entire DP table?")
+//
+// Row i of M only depends on row i-1, so the costs need just two rows of
+// n doubles that are swapped each step. To backtrack we still need to know,
+// for every pixel, which parent gave the minimum - but that is one of only
+// 3 choices (-1, 0, +1), so it fits in a 1-byte int8 instead of an 8-byte
+// double.
+//
+//   full table:  m*n doubles               = 8*m*n bytes
+//   compact:     2*n doubles + m*n int8    = m*n + 16*n bytes  (~8x less)
+//
+// Time is still O(m * n). Ties are broken exactly as in findVerticalSeamDP,
+// so both functions return the identical seam.
+// ---------------------------------------------------------------------------
+std::vector<int> findVerticalSeamDPCompact(const cv::Mat& energy);
+std::vector<int> findHorizontalSeamDPCompact(const cv::Mat& energy);

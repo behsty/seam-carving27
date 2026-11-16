@@ -3,7 +3,8 @@
 //   1. DP on a small hand-worked example (known seam and cost).
 //   2. DP vs brute force (every possible seam enumerated) on random small
 //      energy maps, vertical and horizontal.
-//   3. Graph cut finds a seam of the same (optimal) cost as DP.
+//   3. Compact (memory-reduced) DP returns exactly the same seam as full DP.
+//      Graph cut finds a seam of the same (optimal) cost as DP.
 //   4. Greedy is never cheaper than DP.
 //   5. Edge cases: 1 column, 1 row, uniform energy.
 //   6. End to end: seamCarve() with DP removes the zero-energy column/row.
@@ -167,6 +168,24 @@ namespace
         check(bad == 0, std::to_string(bad) + " of 4000 seams not optimal/valid");
     }
 
+    void testCompactMatchesFull(std::mt19937& rng)
+    {
+        std::printf("Compact DP returns the identical seam as full-table DP\n");
+        std::uniform_int_distribution<int> dimM(1, 40), dimN(1, 40);
+        int bad = 0;
+        for (int t = 0; t < 1000; ++t)
+        {
+            const int m = dimM(rng), n = dimN(rng);
+            // Values 0..3: lots of ties, so tie-breaking must agree too.
+            const cv::Mat e = toMat(randomGrid(rng, m, n, 3));
+            if (findVerticalSeamDPCompact(e) != findVerticalSeamDP(e))
+                ++bad;
+            if (findHorizontalSeamDPCompact(e) != findHorizontalSeamDP(e))
+                ++bad;
+        }
+        check(bad == 0, std::to_string(bad) + " of 2000 compact seams differ");
+    }
+
     void testGraphCutMatchesDP(std::mt19937& rng)
     {
         std::printf("Graph cut cost == DP cost (random maps, n >= 2)\n");
@@ -289,6 +308,7 @@ int main()
 
     testHandExample();
     testDPvsBruteForce(rng);
+    testCompactMatchesFull(rng);
     testGraphCutMatchesDP(rng);
     testGreedyNeverBetter(rng);
     testEdgeCases();
