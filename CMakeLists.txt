@@ -22,6 +22,13 @@ target_link_libraries(seam_core PUBLIC
     ${OpenCV_LIBS}
 )
 
+# OpenMP is optional: it is only used by the row-parallel DP finder, which
+# falls back to serial if OpenMP is not available.
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(seam_core PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
 target_include_directories(seam_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )

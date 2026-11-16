@@ -3,7 +3,8 @@
 //   1. DP on a small hand-worked example (known seam and cost).
 //   2. DP vs brute force (every possible seam enumerated) on random small
 //      energy maps, vertical and horizontal.
-//   3. Compact (memory-reduced) DP returns exactly the same seam as full DP.
+//   3. Compact (memory-reduced) and row-parallel DP return exactly the same
+//      seam as full DP.
 //      Graph cut finds a seam of the same (optimal) cost as DP.
 //   4. Greedy is never cheaper than DP.
 //   5. Edge cases: 1 column, 1 row, uniform energy.
@@ -186,6 +187,32 @@ namespace
         check(bad == 0, std::to_string(bad) + " of 2000 compact seams differ");
     }
 
+    void testParallelMatchesFull(std::mt19937& rng)
+    {
+        std::printf("Parallel DP returns the identical seam as full-table DP"
+            " (%d thread(s))\n", dpParallelThreads());
+        int bad = 0;
+        // Small maps run the serial path; wide maps (>= 512 columns) run the
+        // multithreaded path, so both are covered.
+        std::uniform_int_distribution<int> dimM(1, 40), dimN(1, 40);
+        for (int t = 0; t < 500; ++t)
+        {
+            const cv::Mat e = toMat(randomGrid(rng, dimM(rng), dimN(rng), 3));
+            if (findVerticalSeamDPParallel(e) != findVerticalSeamDP(e))
+                ++bad;
+            if (findHorizontalSeamDPParallel(e) != findHorizontalSeamDP(e))
+                ++bad;
+        }
+        std::uniform_int_distribution<int> wideM(1, 60), wideN(512, 1500);
+        for (int t = 0; t < 40; ++t)
+        {
+            const cv::Mat e = toMat(randomGrid(rng, wideM(rng), wideN(rng), 3));
+            if (findVerticalSeamDPParallel(e) != findVerticalSeamDP(e))
+                ++bad;
+        }
+        check(bad == 0, std::to_string(bad) + " of 1040 parallel seams differ");
+    }
+
     void testGraphCutMatchesDP(std::mt19937& rng)
     {
         std::printf("Graph cut cost == DP cost (random maps, n >= 2)\n");
@@ -309,6 +336,7 @@ int main()
     testHandExample();
     testDPvsBruteForce(rng);
     testCompactMatchesFull(rng);
+    testParallelMatchesFull(rng);
     testGraphCutMatchesDP(rng);
     testGreedyNeverBetter(rng);
     testEdgeCases();

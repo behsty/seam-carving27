@@ -88,6 +88,8 @@ int main()
           findVerticalSeamDP, findHorizontalSeamDP },
         { "DP (compact memory)", "dp_compact",
           findVerticalSeamDPCompact, findHorizontalSeamDPCompact },
+        { "DP (parallel rows)", "dp_parallel",
+          findVerticalSeamDPParallel, findHorizontalSeamDPParallel },
         { "Greedy", "greedy",
           findVerticalSeamGreedy, findHorizontalSeamGreedy },
         { "Graph cut (Dinic)", "graphcut",
@@ -132,6 +134,7 @@ int main()
     std::cout << "\nBuild: Debug (timings are NOT representative; "
         "use the windows-release preset for reported numbers)\n";
 #endif
+    std::cout << "DP (parallel rows) uses " << dpParallelThreads() << " thread(s)\n";
     std::cout << "Output size: " << results[0].image.cols << "x"
         << results[0].image.rows << "\n\n"
         << std::left << std::setw(22) << "Method"

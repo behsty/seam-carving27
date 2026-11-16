@@ -44,3 +44,28 @@ std::vector<int> findHorizontalSeamDP(const cv::Mat& energy);
 // ---------------------------------------------------------------------------
 std::vector<int> findVerticalSeamDPCompact(const cv::Mat& energy);
 std::vector<int> findHorizontalSeamDPCompact(const cv::Mat& energy);
+
+// ---------------------------------------------------------------------------
+// Row-parallel DP ("does multithreading help?")
+//
+// Rows must be computed in order (row i needs row i-1), but the n cells
+// within one row are independent of each other, so each row is split
+// between threads (OpenMP), with a barrier before the next row.
+//
+//   work:  O(m * n)      (unchanged)
+//   span:  O(m * n / p + m * sync)   with p threads
+//
+// The barrier after every row is the cost: with narrow images the per-row
+// work is too small to pay for it, so rows narrower than a threshold are
+// done by one thread. Seams themselves cannot be found in parallel: each
+// seam depends on the image left after removing the previous one.
+//
+// Memory layout and tie-breaking are the same as the compact finder, so the
+// seam is identical to findVerticalSeamDP. Built without OpenMP, it simply
+// runs serially.
+// ---------------------------------------------------------------------------
+std::vector<int> findVerticalSeamDPParallel(const cv::Mat& energy);
+std::vector<int> findHorizontalSeamDPParallel(const cv::Mat& energy);
+
+// Number of threads the parallel finder will use (1 without OpenMP).
+int dpParallelThreads();
