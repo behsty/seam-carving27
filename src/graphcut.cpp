@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <queue>
 #include <stdexcept>
 
@@ -84,92 +83,56 @@ namespace
         bool buildLevels(int s, int t)
         {
             std::fill(level_.begin(), level_.end(), -1);
-            std::queue<int> q;
             level_[s] = 0;
-            q.push(s);
-            while (!q.empty())
+            int qHead = 0, qTail = 0;
+            q_[qTail++] = s;
+
+            while (qHead < qTail)
             {
-                int u = q.front();
-                q.pop();
-                // Nodes at or beyond the sink's level can't be on a shortest path.
+                int u = q_[qHead++];
                 if (level_[t] >= 0 && level_[u] >= level_[t])
                     break;
                 for (int e = head_[u]; e != -1; e = nxt_[e])
                 {
-                    if (cap_[e] > 0 && level_[to_[e]] < 0)
+                    int v = to_[e];
+                    if (cap_[e] > 0 && level_[v] < 0)
                     {
-                        level_[to_[e]] = level_[u] + 1;
-                        q.push(to_[e]);
+                        level_[v] = level_[u] + 1;
+                        q_[qTail++] = v;
                     }
                 }
             }
             return level_[t] >= 0;
         }
 
-        ll blockingFlow(int s, int t)
+        ll dfs(int u, int t, ll pushed)
         {
-            ll total = 0;
-            std::vector<int> path; // edge ids from s to the current node
-            int u = s;
-            while (true)
+            if (pushed == 0 || u == t)
+                return pushed;
+            for (int& e = it_[u]; e != -1; e = nxt_[e])
             {
-                if (u == t)
-                {
-                    ll bottleneck = INF_CAP * 4;
-                    for (int e : path)
-                        bottleneck = std::min(bottleneck, cap_[e]);
-                    size_t firstSaturated = path.size();
-                    for (size_t k = 0; k < path.size(); ++k)
-                    {
-                        int e = path[k];
-                        cap_[e] -= bottleneck;
-                        cap_[e ^ 1] += bottleneck;
-                        if (cap_[e] == 0 && firstSaturated == path.size())
-                            firstSaturated = k;
-                    }
-                    total += bottleneck;
-                    // Retreat only to the tail of the first saturated edge instead
-                    // of restarting from the source.
-                    u = to_[path[firstSaturated] ^ 1];
-                    path.resize(firstSaturated);
+                int v = to_[e];
+                if (level_[u] + 1 != level_[v] || cap_[e] == 0)
                     continue;
-                }
-
-                bool advanced = false;
-                while (it_[u] != -1)
-                {
-                    int e = it_[u];
-                    int v = to_[e];
-                    if (cap_[e] > 0 && level_[v] == level_[u] + 1)
-                    {
-                        path.push_back(e);
-                        u = v;
-                        advanced = true;
-                        break;
-                    }
-                    it_[u] = nxt_[e];
-                }
-                if (advanced)
+                ll tr = dfs(v, t, std::min(pushed, cap_[e]));
+                if (tr == 0)
                     continue;
-
-                // dead end: retreat
-                if (u == s)
-                    break;
-                level_[u] = -1;
-                int e = path.back();
-                path.pop_back();
-                u = to_[e ^ 1];
+                cap_[e] -= tr;
+                cap_[e ^ 1] += tr;
+                return tr;
             }
-            return total;
+            return 0;
         }
 
         ll dinic(int s, int t)
         {
+            q_.resize(head_.size());
             ll flow = 0;
             while (buildLevels(s, t))
             {
                 it_ = head_;
-                flow += blockingFlow(s, t);
+                while (ll pushed = dfs(s, t, INF_CAP * 4))
+                    flow += pushed;
             }
             return flow;
         }
@@ -177,6 +140,7 @@ namespace
         std::vector<int> head_, to_, nxt_;
         std::vector<ll> cap_;
         std::vector<int> level_, it_;
+        std::vector<int> q_;
     };
 } // namespace
 
@@ -239,8 +203,9 @@ std::vector<int> findVerticalSeamGraphCut(
 
     auto t0 = Clock::now();
     g.maxflow(S, T);
-    if (maxflowMs)
+    if (maxflowMs) 
         *maxflowMs += msSince(t0);
+
 
     // Source side S of the min cut = reachable set in the residual graph.
     std::vector<char> inS = g.reachableFrom(S);
