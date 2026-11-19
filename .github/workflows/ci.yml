@@ -82,7 +82,7 @@ jobs:
         run: cd results && zip -r ../seam-carving-results.zip .
 
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: results
           path: seam-carving-results.zip
@@ -108,7 +108,7 @@ jobs:
 
       - name: Restore vcpkg cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ env.TRIPLET }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
@@ -127,7 +127,7 @@ jobs:
       # so the slow OpenCV build is never repeated.
       - name: Save vcpkg cache
         if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ env.TRIPLET }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
@@ -160,7 +160,7 @@ jobs:
           Pop-Location
 
       - name: Upload package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-package
           path: seam-carving-windows-x64.zip
@@ -175,9 +175,19 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
+          # Put every artifact's files straight into dist/ (no per-artifact
+          # subfolders), so the release steps can simply attach dist/*.zip.
+          merge-multiple: true
+
+      # Fail with a clear message if either zip is missing.
+      - name: Check release files
+        run: |
+          ls -lR dist
+          test -f dist/seam-carving-windows-x64.zip
+          test -f dist/seam-carving-results.zip
 
       # Versioned release for a v* tag.
       - name: Create versioned release
@@ -185,9 +195,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            dist/windows-package/seam-carving-windows-x64.zip \
-            dist/results/seam-carving-results.zip \
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
@@ -200,9 +208,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
-          gh release create latest \
-            dist/windows-package/seam-carving-windows-x64.zip \
-            dist/results/seam-carving-results.zip \
+          gh release create latest dist/*.zip \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Latest build (main @ ${GITHUB_SHA::7})" \
