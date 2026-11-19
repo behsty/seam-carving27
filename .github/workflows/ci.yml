@@ -7,8 +7,10 @@
 #             tests and package a ready-to-run zip (exe + DLLs + assets).
 #             The first run builds OpenCV (~30-40 min); later runs reuse the
 #             vcpkg binary cache.
-#   release - CD: when a tag like v1.0 is pushed, publish a GitHub Release
-#             with the Windows zip and the sample results attached.
+#   release - CD: publish a GitHub Release with the Windows zip and the
+#             sample results attached:
+#               * every push to main  -> updates the rolling "latest" release
+#               * a tag like v1.0     -> creates a permanent versioned release
 
 name: CI
 
@@ -157,7 +159,9 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.ref == 'refs/heads/main' && github.event_name != 'pull_request')
     needs: [linux, windows]
     runs-on: ubuntu-24.04
     permissions:
@@ -167,7 +171,9 @@ jobs:
         with:
           path: dist
 
-      - name: Create release
+      # Versioned release for a v* tag.
+      - name: Create versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -177,3 +183,19 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
+
+      # Rolling "latest" release for main: replace the previous one so the
+      # Releases page always has a single, up-to-date build of main.
+      - name: Update rolling "latest" release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create latest \
+            dist/windows-package/seam-carving-windows-x64.zip \
+            dist/results/seam-carving-results.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Latest build (main @ ${GITHUB_SHA::7})" \
+            --notes "Automatic build of the latest commit on main ($GITHUB_SHA). Download seam-carving-windows-x64.zip, unzip, and run seam_carving.exe from that folder."
