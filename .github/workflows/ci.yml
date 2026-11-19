@@ -1,0 +1,179 @@
+# CI/CD for seam carving.
+#
+#   linux   - fast check on every push/PR: build (GCC + system OpenCV), run the
+#             unit tests, run the program on a sample image and upload the
+#             result images + timing table.
+#   windows - same build as the team uses (MSVC + vcpkg OpenCV), run the unit
+#             tests and package a ready-to-run zip (exe + DLLs + assets).
+#             The first run builds OpenCV (~30-40 min); later runs reuse the
+#             vcpkg binary cache.
+#   release - CD: when a tag like v1.0 is pushed, publish a GitHub Release
+#             with the Windows zip and the sample results attached.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (GCC) - build, test, run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenCV and Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libopencv-dev ninja-build
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      # Runs every method (DP variants, greedy, graph cut) on sky2.png:
+      # 50 vertical + 20 horizontal seams, so both directions are exercised.
+      - name: Run seam carving on a sample image
+        run: |
+          set -o pipefail
+          mkdir -p results
+          cd results
+          "$GITHUB_WORKSPACE/build/seam_carving" \
+            --image "$GITHUB_WORKSPACE/assets/sky2.png" --width 200 --height 148 \
+            | tr '\r' '\n' | grep -v '^\[' > output.txt
+          cat output.txt
+          ls -l *.png
+          {
+            echo "### Seam carving comparison (sky2.png, 250x168 -> 200x148, Linux runner)"
+            echo '```'
+            sed -n '/^Method/,$p' output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Zip results
+        run: cd results && zip -r ../seam-carving-results.zip .
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: results
+          path: seam-carving-results.zip
+
+  windows:
+    name: Windows (MSVC + vcpkg) - build, test, package
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      # vcpkg stores every built package here; cached between runs.
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-cache
+      # Release-only build of OpenCV: half the build time of x64-windows.
+      TRIPLET: x64-windows-release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare vcpkg cache
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          $commit = git -C $env:VCPKG_INSTALLATION_ROOT rev-parse --short HEAD
+          "VCPKG_COMMIT=$commit" >> $env:GITHUB_ENV
+
+      - name: Restore vcpkg cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ env.TRIPLET }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ env.TRIPLET }}-
+
+      # Uses the vcpkg that is preinstalled on the runner; vcpkg installs
+      # OpenCV (from vcpkg.json) during this step.
+      - name: Configure
+        shell: pwsh
+        run: >
+          cmake -S . -B build
+          "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET=${{ env.TRIPLET }}
+
+      # Save right after OpenCV is built, even if a later step fails,
+      # so the slow OpenCV build is never repeated.
+      - name: Save vcpkg cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ env.TRIPLET }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      # vcpkg copies the OpenCV DLLs next to the exe, so the folder runs as is.
+      - name: Package
+        shell: pwsh
+        run: |
+          $dist = "dist/seam-carving-windows-x64"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Copy-Item build/Release/seam_carving.exe, build/Release/*.dll $dist
+          Copy-Item -Recurse assets "$dist/assets"
+          Copy-Item README.md $dist
+          Compress-Archive -Path "$dist/*" -DestinationPath seam-carving-windows-x64.zip
+
+      - name: Smoke test packaged program
+        shell: pwsh
+        run: |
+          Expand-Archive seam-carving-windows-x64.zip smoke
+          Push-Location smoke
+          ./seam_carving.exe --image assets/sky2.png --width 240 | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "seam_carving.exe failed ($LASTEXITCODE)" }
+          if (-not (Test-Path greedy_result.png)) { throw "no output image written" }
+          Pop-Location
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: seam-carving-windows-x64.zip
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/windows-package/seam-carving-windows-x64.zip \
+            dist/results/seam-carving-results.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
