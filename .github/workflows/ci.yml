@@ -24,10 +24,11 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same branch cancels the older run.
+# A newer push to a feature branch cancels the older run. On main the newer
+# run waits instead, so a running build (and its vcpkg cache) is never lost.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   linux:
@@ -35,12 +36,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # DEBIAN_FRONTEND must be passed through sudo, or a package can stop at
+      # a configuration prompt and wait forever. Rebuilding the man-page index
+      # after a big install is very slow on the runners, so turn it off.
       - name: Install OpenCV and Ninja
+        timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libopencv-dev ninja-build
+          echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null 2>&1 || true
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update -q
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
+            --no-install-recommends libopencv-dev ninja-build
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -89,7 +97,7 @@ jobs:
       # Release-only build of OpenCV: half the build time of x64-windows.
       TRIPLET: x64-windows-release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Prepare vcpkg cache
         shell: pwsh
