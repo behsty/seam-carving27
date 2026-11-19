@@ -5,7 +5,7 @@
       "name": "windows-debug",
       "inherits": "vcpkg-base",
       "environment": {
-        "VCPKG_ROOT": "C:/Users/alyy/tools/vcpkg"
+        "VCPKG_ROOT": "C:/tools/vcpkg"
       }
     },
     {
