@@ -10,7 +10,7 @@ Seams are found with three methods, which are compared on the same images and ta
 
 | Dynamic programming | Greedy |
 |---|---|
-| ![DP keeps the surfer](docs/images/surfer_dp.gif) | ![Greedy removes the surfer](docs/images/surfer_greedy.gif) |
+| ![DP keeps the surfer](assets/gifs/surfer_dp.gif) | ![Greedy removes the surfer](assets/gifs/surfer_greedy.gif) |
 *Removing 592 seams from surfer.png: dynamic programming routes around the surfer, while greedy removes them.*
 
 ## Features
