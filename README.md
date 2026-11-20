@@ -18,7 +18,7 @@ Seams are found with three methods, which are compared on the same images and ta
 |---|---|---|
 | ![DP on sky2](assets/gifs/sky2_dp.gif) | ![Greedy on sky2](assets/gifs/sky2_greedy.gif) | ![Graph cut on sky2](assets/gifs/sky2_graphcut.gif) |
 
-
+*Removing 60 seams from sky2.png.*
 
 ## Features
 
@@ -277,8 +277,6 @@ Every seam finder takes an energy map and returns one seam (`std::vector<int>`, 
 New `.cpp` files under `src/` are picked up automatically after reconfiguring. Keep exactly one `main()` under `src/`, and put headers under `include/`.
 
 The presets target 64-bit Windows; macOS and Linux need their own toolchain setup.
-
-Demo video: *(YouTube link)*  To be updated
 
 ## References
 
