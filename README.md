@@ -8,7 +8,10 @@ Seams are found with three methods, which are compared on the same images and ta
 - **Greedy**: picks the cheapest pixel row by row, without looking ahead
 - **Graph cut**: optimal seam found as a minimum s–t cut (max-flow)
 
-<!-- Demo GIF: add e.g. docs/images/dp_steps.gif here -->
+| Dynamic programming | Greedy |
+|---|---|
+| ![DP keeps the surfer](docs/images/surfer_dp.gif) | ![Greedy removes the surfer](docs/images/surfer_greedy.gif) |
+*Removing 592 seams from surfer.png: dynamic programming routes around the surfer, while greedy removes them.*
 
 ## Features
 
